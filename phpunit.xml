@@ -25,14 +25,21 @@
         </include>
         <exclude>
             <directory>src/vendor</directory>
+            <directory>src/storage</directory>
+            <directory>src/public/assets</directory>
             <file>src/config.php</file>
+            <file>src/extend.php</file>
         </exclude>
     </source>
     
-    <!-- PHP Environment Variables -->
+    <!-- PHP Environment Variables for Flarum -->
     <php>
         <env name="APP_ENV" value="testing"/>
         <env name="DB_CONNECTION" value="sqlite"/>
         <env name="DB_DATABASE" value=":memory:"/>
+        <env name="FLARUM_TEST" value="true"/>
+        <server name="HTTP_HOST" value="localhost"/>
+        <server name="REQUEST_URI" value="/"/>
+        <ini name="memory_limit" value="512M"/>
     </php>
 </phpunit>
