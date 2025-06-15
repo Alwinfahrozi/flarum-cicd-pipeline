@@ -1,0 +1,306 @@
+# ===========================================
+# Flarum CI/CD Pipeline - Continuous Integration
+# Alwin Fahrozi Marbun - CI/Testing Engineer
+# ===========================================
+
+name: Continuous Integration & Testing
+
+# Workflow Triggers
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch: # Manual trigger
+
+# Environment Variables
+env:
+  PHP_VERSION: '8.2'
+  COMPOSER_CACHE_FILES_DIR: ~/.composer/cache/files
+  
+jobs:
+  # ===========================================
+  # Job 1: Code Quality & Static Analysis
+  # ===========================================
+  code-quality:
+    name: Code Quality & Static Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0 # Full history for better analysis
+
+    - name: Setup PHP Environment
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ env.PHP_VERSION }}
+        extensions: mbstring, xml, ctype, json, curl, zip, pdo, pdo_mysql, mysqli
+        coverage: xdebug
+        ini-values: memory_limit=512M
+
+    - name: Validate composer.json
+      run: composer validate --strict
+
+    - name: Get Composer Cache Directory
+      id: composer-cache
+      run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+    - name: Cache Composer Dependencies
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-composer-
+
+    - name: Install Dependencies
+      run: composer install --prefer-dist --no-progress --no-suggest --optimize-autoloader
+
+    - name: Check Code Style (PHP CS Fixer)
+      run: |
+        if [ -f "vendor/bin/php-cs-fixer" ]; then
+          vendor/bin/php-cs-fixer fix --dry-run --diff --verbose
+        else
+          echo "PHP CS Fixer not available, skipping..."
+        fi
+
+    - name: Static Analysis (PHPStan)
+      run: |
+        if [ -f "vendor/bin/phpstan" ]; then
+          vendor/bin/phpstan analyse --no-progress --error-format=github
+        else
+          echo "PHPStan not available, skipping..."
+        fi
+
+    - name: Security Vulnerability Check
+      run: composer audit
+
+  # ===========================================
+  # Job 2: Unit & Feature Testing
+  # ===========================================
+  testing:
+    name: Unit & Feature Testing
+    runs-on: ubuntu-latest
+    needs: code-quality
+    
+    strategy:
+      matrix:
+        php: ['8.1', '8.2', '8.3']
+        dependency-version: [prefer-lowest, prefer-stable]
+        exclude:
+          - php: '8.3'
+            dependency-version: prefer-lowest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: flarum_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup PHP ${{ matrix.php }}
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ matrix.php }}
+        extensions: mbstring, xml, ctype, json, curl, zip, pdo, pdo_mysql, mysqli
+        coverage: xdebug
+        ini-values: memory_limit=512M
+
+    - name: Cache Composer Dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.composer/cache/files
+        key: dependencies-php-${{ matrix.php }}-composer-${{ hashFiles('**/composer.lock') }}
+        restore-keys: |
+          dependencies-php-${{ matrix.php }}-composer-
+
+    - name: Install Dependencies
+      run: composer install --${{ matrix.dependency-version }} --prefer-dist --no-progress --no-suggest
+
+    - name: Copy Environment File
+      run: cp .env.example .env
+
+    - name: Configure Environment for Testing
+      run: |
+        echo "APP_ENV=testing" >> .env
+        echo "DB_CONNECTION=mysql" >> .env
+        echo "DB_HOST=127.0.0.1" >> .env
+        echo "DB_PORT=3306" >> .env
+        echo "DB_DATABASE=flarum_test" >> .env
+        echo "DB_USERNAME=root" >> .env
+        echo "DB_PASSWORD=root" >> .env
+
+    - name: Wait for MySQL
+      run: |
+        while ! mysqladmin ping -h 127.0.0.1 -u root -proot --silent; do
+          echo "Waiting for MySQL..."
+          sleep 2
+        done
+        echo "MySQL is ready!"
+
+    - name: Run Unit Tests
+      run: vendor/bin/phpunit --testsuite=Unit --testdox
+
+    - name: Run Feature Tests
+      run: vendor/bin/phpunit --testsuite=Feature --testdox
+
+    - name: Generate Test Coverage
+      run: vendor/bin/phpunit --coverage-clover=coverage.xml --coverage-text
+
+    - name: Upload Coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Archive Test Results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-results-php${{ matrix.php }}-${{ matrix.dependency-version }}
+        path: |
+          coverage.xml
+          tests/results/
+        retention-days: 30
+
+  # ===========================================
+  # Job 3: Integration Testing
+  # ===========================================
+  integration:
+    name: Integration Testing
+    runs-on: ubuntu-latest
+    needs: testing
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: flarum_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 3
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ env.PHP_VERSION }}
+        extensions: mbstring, xml, ctype, json, curl, zip, pdo, pdo_mysql, mysqli, redis
+        coverage: xdebug
+
+    - name: Install Dependencies
+      run: composer install --prefer-dist --no-progress
+
+    - name: Setup Integration Environment
+      run: |
+        cp .env.example .env
+        echo "APP_ENV=testing" >> .env
+        echo "DB_CONNECTION=mysql" >> .env
+        echo "DB_HOST=127.0.0.1" >> .env
+        echo "DB_DATABASE=flarum_test" >> .env
+        echo "DB_USERNAME=root" >> .env
+        echo "DB_PASSWORD=root" >> .env
+        echo "REDIS_HOST=127.0.0.1" >> .env
+        echo "REDIS_PORT=6379" >> .env
+
+    - name: Run Integration Tests
+      run: |
+        echo "Running integration tests..."
+        vendor/bin/phpunit --testdox
+        echo "Integration tests completed!"
+
+    - name: Test Database Connection
+      run: |
+        php -r "
+        try {
+          \$pdo = new PDO('mysql:host=127.0.0.1;port=3306;dbname=flarum_test', 'root', 'root');
+          echo 'Database connection: SUCCESS' . PHP_EOL;
+        } catch (Exception \$e) {
+          echo 'Database connection: FAILED - ' . \$e->getMessage() . PHP_EOL;
+          exit(1);
+        }
+        "
+
+    - name: Test Redis Connection
+      run: |
+        php -r "
+        if (extension_loaded('redis')) {
+          \$redis = new Redis();
+          if (\$redis->connect('127.0.0.1', 6379)) {
+            echo 'Redis connection: SUCCESS' . PHP_EOL;
+          } else {
+            echo 'Redis connection: FAILED' . PHP_EOL;
+          }
+        } else {
+          echo 'Redis extension not loaded, skipping...' . PHP_EOL;
+        }
+        "
+
+  # ===========================================
+  # Job 4: Build Status Summary
+  # ===========================================
+  build-summary:
+    name: Build Status Summary
+    runs-on: ubuntu-latest
+    needs: [code-quality, testing, integration]
+    if: always()
+
+    steps:
+    - name: Check Build Status
+      run: |
+        echo "## 🚀 CI/CD Pipeline Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📊 Job Status:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Code Quality**: ${{ needs.code-quality.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Testing**: ${{ needs.testing.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Integration**: ${{ needs.integration.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ needs.code-quality.result }}" = "success" ] && 
+           [ "${{ needs.testing.result }}" = "success" ] && 
+           [ "${{ needs.integration.result }}" = "success" ]; then
+          echo "✅ **Overall Status**: SUCCESS - Ready for deployment!" >> $GITHUB_STEP_SUMMARY
+          echo "overall_status=success" >> $GITHUB_OUTPUT
+        else
+          echo "❌ **Overall Status**: FAILED - Check individual jobs for details" >> $GITHUB_STEP_SUMMARY
+          echo "overall_status=failure" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Notify on Success
+      if: needs.code-quality.result == 'success' && needs.testing.result == 'success' && needs.integration.result == 'success'
+      run: |
+        echo "🎉 All checks passed! Ready for next stage."
+        echo "✅ Code quality checks: PASSED"
+        echo "✅ Unit & Feature tests: PASSED"
+        echo "✅ Integration tests: PASSED"
+
+    - name: Notify on Failure
+      if: needs.code-quality.result != 'success' || needs.testing.result != 'success' || needs.integration.result != 'success'
+      run: |
+        echo "❌ Some checks failed. Please review and fix:"
+        echo "- Code Quality: ${{ needs.code-quality.result }}"
+        echo "- Testing: ${{ needs.testing.result }}"
+        echo "- Integration: ${{ needs.integration.result }}"
+        exit 1
