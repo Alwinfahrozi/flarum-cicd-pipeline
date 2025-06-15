@@ -130,7 +130,12 @@ jobs:
           dependencies-php-${{ matrix.php }}-composer-
 
     - name: Install Dependencies
-      run: composer install --${{ matrix.dependency-version }} --prefer-dist --no-progress --no-suggest
+      run: |
+        if [ "${{ matrix.dependency-version }}" = "prefer-lowest" ]; then
+          composer update --prefer-lowest --prefer-dist --no-progress --no-suggest
+        else
+          composer install --prefer-dist --no-progress --no-suggest
+        fi
 
     - name: Copy Environment File
       run: cp .env.example .env
