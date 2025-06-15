@@ -60,10 +60,11 @@ jobs:
 
     - name: Check Code Style (PHP CS Fixer)
       run: |
-        if [ -f "vendor/bin/php-cs-fixer" ]; then
+        if [ -f ".php-cs-fixer.php" ] && [ -f "vendor/bin/php-cs-fixer" ]; then
           vendor/bin/php-cs-fixer fix --dry-run --diff --verbose
         else
-          echo "PHP CS Fixer not available, skipping..."
+          echo "⚠️  PHP CS Fixer configuration not found, skipping code style check..."
+          echo "ℹ️  To enable code style checking, create .php-cs-fixer.php configuration file"
         fi
 
     - name: Static Analysis (PHPStan)
