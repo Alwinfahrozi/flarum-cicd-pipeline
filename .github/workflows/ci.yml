@@ -48,7 +48,7 @@ jobs:
       run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
     - name: Cache Composer Dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ${{ steps.composer-cache.outputs.dir }}
         key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -122,7 +122,7 @@ jobs:
         ini-values: memory_limit=512M
 
     - name: Cache Composer Dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: ~/.composer/cache/files
         key: dependencies-php-${{ matrix.php }}-composer-${{ hashFiles('**/composer.lock') }}
@@ -163,7 +163,7 @@ jobs:
       run: vendor/bin/phpunit --coverage-clover=coverage.xml --coverage-text
 
     - name: Upload Coverage to Codecov
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         flags: unittests
@@ -171,7 +171,7 @@ jobs:
         fail_ci_if_error: false
 
     - name: Archive Test Results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-results-php${{ matrix.php }}-${{ matrix.dependency-version }}
