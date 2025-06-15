@@ -1,50 +1,64 @@
 {
-    "name": "flarum/flarum",
-    "description": "Delightfully simple forum software.",
+    "name": "flarum-cicd/pipeline",
+    "description": "CI/CD Pipeline for Flarum Forum - Tugas Besar MKEPL",
     "type": "project",
-    "keywords": [
-        "forum",
-        "discussion"
-    ],
-    "homepage": "https://flarum.org/",
+    "keywords": ["ci/cd", "pipeline", "github-actions", "docker", "php"],
     "license": "MIT",
     "authors": [
         {
-            "name": "Flarum",
-            "email": "info@flarum.org",
-            "homepage": "https://flarum.org/team"
+            "name": "Alwin Fahrozi Marbun",
+            "role": "CI/Testing Engineer"
+        },
+        {
+            "name": "Muh Dzaky Musaddaq",
+            "role": "Docker/Deployment Engineer"
         }
     ],
-    "support": {
-        "issues": "https://github.com/flarum/core/issues",
-        "source": "https://github.com/flarum/flarum",
-        "docs": "https://docs.flarum.org/"
-    },
     "require": {
-        "flarum/core": "^2.0.0-beta.3",
-        "flarum/approval": "*",
-        "flarum/bbcode": "*",
-        "flarum/emoji": "*",
-        "flarum/lang-english": "*",
-        "flarum/flags": "*",
-        "flarum/gdpr": "*",
-        "flarum/likes": "*",
-        "flarum/lock": "*",
-        "flarum/markdown": "*",
-        "flarum/mentions": "*",
-        "flarum/messages": "*",
-        "flarum/nicknames": "*",
-        "flarum/pusher": "*",
-        "flarum/statistics": "*",
-        "flarum/sticky": "*",
-        "flarum/subscriptions": "*",
-        "flarum/suspend": "*",
-        "flarum/tags": "*"
+        "php": "^8.2",
+        "vlucas/phpdotenv": "^5.5",
+        "monolog/monolog": "^3.0",
+        "symfony/console": "^6.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.0 || ^10.0",
+        "mockery/mockery": "^1.5",
+        "fakerphp/faker": "^1.20",
+        "phpstan/phpstan": "^1.8",
+        "squizlabs/php_codesniffer": "^3.7",
+        "friendsofphp/php-cs-fixer": "^3.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "App\\": "src/app/",
+            "Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ],
+        "test": "vendor/bin/phpunit",
+        "test-coverage": "vendor/bin/phpunit --coverage-html coverage",
+        "test-coverage-xml": "vendor/bin/phpunit --coverage-clover coverage.xml",
+        "analyze": "vendor/bin/phpstan analyse src tests --level=5",
+        "format": "vendor/bin/php-cs-fixer fix --dry-run --diff",
+        "format-fix": "vendor/bin/php-cs-fixer fix",
+        "quality": ["@analyze", "@format", "@test"],
+        "setup": [
+            "composer install",
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
+        ],
+        "ci": [
+            "@quality"
+        ]
     },
     "config": {
+        "optimize-autoloader": true,
         "preferred-install": "dist",
-        "sort-packages": true
+        "sort-packages": true,
+        "platform-check": false
     },
-    "minimum-stability": "beta",
+    "minimum-stability": "stable",
     "prefer-stable": true
 }

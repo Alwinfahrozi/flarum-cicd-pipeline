@@ -1,11 +1,226 @@
-.DS_Store
-Thumbs.db
-.vagrant
-config.php
-.idea
-vendor
-server
-core
-studio.json
-composer.lock
+# ===========================================
+# Flarum CI/CD Pipeline - .gitignore
+# ===========================================
 
+# ===========================================
+# PHP & Composer
+# ===========================================
+/vendor/
+composer.phar
+composer.lock
+.composer/
+
+# ===========================================
+# Environment & Configuration
+# ===========================================
+.env
+.env.local
+.env.production
+.env.staging
+.env.testing
+*.key
+
+# ===========================================
+# Flarum Specific
+# ===========================================
+/src/vendor/
+/src/storage/logs/*.log
+/src/storage/cache/*
+/src/storage/sessions/*
+/src/storage/views/*
+/src/storage/tmp/*
+/src/config.php
+/src/extend.php
+/src/public/assets/*
+!/src/public/assets/.gitkeep
+/src/storage/formatter
+/src/storage/locale
+
+# ===========================================
+# Testing
+# ===========================================
+/tests/coverage/
+/.phpunit.result.cache
+coverage.xml
+coverage.html
+clover.xml
+junit.xml
+phpunit.xml.bak
+
+# ===========================================
+# Docker
+# ===========================================
+# Docker volumes & data
+/docker/mysql/data/
+/docker/redis/data/
+/docker/logs/
+*.log
+
+# Docker environment files
+.env.docker.local
+docker-compose.override.yml
+
+# ===========================================
+# IDE & Editors
+# ===========================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# PhpStorm
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ===========================================
+# Operating System
+# ===========================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# ===========================================
+# Node.js (jika ada frontend build)
+# ===========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+
+# ===========================================
+# Build & Distribution
+# ===========================================
+/build/
+/dist/
+/public/build/
+/public/hot
+/public/storage
+/storage/*.key
+
+# ===========================================
+# Temporary & Cache
+# ===========================================
+*.tmp
+*.temp
+.cache/
+.tmp/
+temp/
+tmp/
+
+# ===========================================
+# Backup Files
+# ===========================================
+*.bak
+*.backup
+*.old
+*.orig
+
+# ===========================================
+# CI/CD Specific
+# ===========================================
+# GitHub Actions artifacts (local)
+/.github/artifacts/
+
+# Deployment artifacts
+/deployment/
+/releases/
+
+# ===========================================
+# Security & Secrets
+# ===========================================
+# Private keys
+*.pem
+*.p12
+*.pfx
+*.key
+*.crt
+*.csr
+
+# Secrets
+secrets.json
+.secrets
+/config/secrets/
+
+# ===========================================
+# Development Tools
+# ===========================================
+# Vagrant
+.vagrant/
+
+# Docker development
+docker-compose.dev.yml
+docker-compose.local.yml
+
+# ===========================================
+# Logs & Monitoring
+# ===========================================
+*.log
+logs/
+log/
+/storage/logs/
+/var/log/
+
+# ===========================================
+# Database
+# ===========================================
+*.sqlite
+*.sqlite3
+*.db
+/database/*.sqlite
+/database/*.sqlite3
+
+# MySQL dumps
+*.sql
+!docker/mysql/init/*.sql
+
+# ===========================================
+# Custom Project Specific
+# ===========================================
+# Local configuration overrides
+local.config.php
+local.env
+
+# Development utilities
+/dev-tools/
+/utilities/
+
+# Documentation builds
+/docs/build/
+/documentation/build/
