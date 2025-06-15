@@ -1,0 +1,186 @@
+# =====================================================
+# Docker Compose Configuration for Flarum CI/CD
+# Muh Dzaky Musaddaq - Docker/Deployment Engineer
+# =====================================================
+
+version: '3.8'
+
+services:
+  # =====================================================
+  # Flarum Application Container
+  # =====================================================
+  flarum:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: flarum-app
+    restart: unless-stopped
+    ports:
+      - "${DOCKER_APP_PORT:-80}:80"
+    environment:
+      # Database Configuration
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_DATABASE=${DOCKER_DB_DATABASE:-flarum}
+      - DB_USERNAME=${DOCKER_DB_USER:-flarum_user}
+      - DB_PASSWORD=${DOCKER_DB_PASSWORD:-flarum_password}
+      
+      # Application Configuration
+      - APP_ENV=${APP_ENV:-production}
+      - APP_DEBUG=${APP_DEBUG:-false}
+      - APP_URL=${APP_URL:-http://localhost}
+      
+      # Cache Configuration
+      - CACHE_DRIVER=${CACHE_DRIVER:-redis}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      
+      # Session Configuration
+      - SESSION_DRIVER=${SESSION_DRIVER:-redis}
+      
+      # Mail Configuration
+      - MAIL_DRIVER=${MAIL_DRIVER:-smtp}
+      - MAIL_HOST=${MAIL_HOST:-localhost}
+      - MAIL_PORT=${MAIL_PORT:-1025}
+    volumes:
+      - flarum_storage:/var/www/html/storage
+      - flarum_assets:/var/www/html/public/assets
+      - flarum_logs:/var/log/nginx
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - flarum-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # =====================================================
+  # MySQL Database Container
+  # =====================================================
+  mysql:
+    image: mysql:8.0
+    container_name: flarum-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DOCKER_DB_ROOT_PASSWORD:-root_password}
+      MYSQL_DATABASE: ${DOCKER_DB_DATABASE:-flarum}
+      MYSQL_USER: ${DOCKER_DB_USER:-flarum_user}
+      MYSQL_PASSWORD: ${DOCKER_DB_PASSWORD:-flarum_password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      - ./mysql/conf:/etc/mysql/conf.d:ro
+    ports:
+      - "${DOCKER_DB_PORT:-3306}:3306"
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - flarum-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DOCKER_DB_ROOT_PASSWORD:-root_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # =====================================================
+  # Redis Cache Container
+  # =====================================================
+  redis:
+    image: redis:7-alpine
+    container_name: flarum-redis
+    restart: unless-stopped
+    command: >
+      redis-server 
+      --appendonly yes 
+      --requirepass ${REDIS_PASSWORD:-}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${DOCKER_REDIS_PORT:-6379}:6379"
+    networks:
+      - flarum-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # =====================================================
+  # Adminer Database Management (Development)
+  # =====================================================
+  adminer:
+    image: adminer:latest
+    container_name: flarum-adminer
+    restart: unless-stopped
+    ports:
+      - "${DOCKER_ADMINER_PORT:-8080}:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+      ADMINER_DESIGN: pepa-linha
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - flarum-network
+    profiles:
+      - development
+
+  # =====================================================
+  # Nginx Load Balancer (Production)
+  # =====================================================
+  nginx-lb:
+    image: nginx:alpine
+    container_name: flarum-nginx-lb
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx/nginx-lb.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/ssl/certs:ro
+    depends_on:
+      - flarum
+    networks:
+      - flarum-network
+    profiles:
+      - production
+
+# =====================================================
+# Volume Definitions
+# =====================================================
+volumes:
+  mysql_data:
+    driver: local
+    name: flarum_mysql_data
+  redis_data:
+    driver: local
+    name: flarum_redis_data
+  flarum_storage:
+    driver: local
+    name: flarum_storage
+  flarum_assets:
+    driver: local
+    name: flarum_assets
+  flarum_logs:
+    driver: local
+    name: flarum_logs
+
+# =====================================================
+# Network Definitions
+# =====================================================
+networks:
+  flarum-network:
+    driver: bridge
+    name: flarum_network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
