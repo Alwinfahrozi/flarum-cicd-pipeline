@@ -24,6 +24,8 @@ RUN apk add --no-cache \
     libjpeg-turbo-dev \
     freetype-dev \
     libwebp-dev \
+    # ZIP library
+    libzip-dev \
     # Database
     mysql-client \
     # Web server
@@ -68,7 +70,6 @@ COPY docker/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY docker/nginx/default.conf /etc/nginx/conf.d/default.conf
 COPY docker/supervisord.conf /etc/supervisord.conf
 COPY docker/php/php.ini /usr/local/etc/php/conf.d/99-custom.ini
-COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
 
 # Create necessary directories
 RUN mkdir -p /var/www/html/storage/{logs,cache,sessions,views,tmp} \
@@ -139,4 +140,4 @@ ENV PHP_MEMORY_LIMIT=256M \
     NGINX_WORKER_CONNECTIONS=1024
 
 # Start the application
-CMD ["/usr/local/bin/start.sh"]
+CMD ["deploy.sh"]
